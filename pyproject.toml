@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "gridtree"
+version = "0.1.0"
+description = "Generalized quadtree."
+authors = ["uigctaw <uigctaw@protonmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+flake8 = "^3.9.1"
+mypy = "^0.812"
+bandit = "^1.7.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
