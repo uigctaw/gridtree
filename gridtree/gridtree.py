@@ -1,4 +1,7 @@
 from collections import defaultdict
+from functools import reduce
+from itertools import zip_longest
+from operator import ior
 from typing import Annotated, Collection
 
 
@@ -68,7 +71,7 @@ def build(*, max_leaf_size: PositiveInteger):
                 Collection[tuple[NormalizedFloat, ...]],
                 Unique,
             ],
-            ):
+    ):
         """
 
         Raises
@@ -86,3 +89,40 @@ def build(*, max_leaf_size: PositiveInteger):
             return {}
 
     return gtree
+
+
+def build_list(*, max_leaf_size: PositiveInteger):
+    builder = build(max_leaf_size=max_leaf_size)
+
+    def _gtree_to_list(tree):
+        if not tree:
+            return []
+        if isinstance(tree, list):
+            return tree
+
+        the_list = [tree]
+        sub_lists = [
+                _gtree_to_list(v)
+                for v in tree.values()
+                if isinstance(v, dict)
+        ]
+        for next_list_element_parts in zip_longest(*sub_lists):
+            next_element = reduce(
+                    ior,
+                    filter(None, next_list_element_parts),
+                    {},
+                    )
+            the_list.append(next_element)
+        return the_list
+
+    def gtree_to_list(
+            points: Annotated[
+                Collection[tuple[NormalizedFloat, ...]],
+                Unique,
+            ],
+    ):
+        tree = builder(points=points)
+        the_list = _gtree_to_list(tree)
+        return the_list
+
+    return gtree_to_list
