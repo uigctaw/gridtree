@@ -1,5 +1,6 @@
-from gridtree import build, build_list
+from gridtree import build, build_list, find_closest
 import pytest  # type: ignore
+import random
 
 
 def test_empty_set_results_in_empty_dict():
@@ -124,3 +125,55 @@ class TestTreeAsList:
         inputs = [(0.2,), (0.3,), (0.4,), (0.6,), (0.8,), (0.9,), (0.95,)]
         actual = build_list(max_leaf_size=2)(inputs)
         assert actual == expected
+
+
+def calculate_distance(p1, p2):
+    return sum((x_i1 - x_i2) ** 2 for x_i1, x_i2 in  zip(p1, p2))
+
+
+find_closest = find_closest(calculate_distance)
+
+
+class TestPointSearch:
+
+    def test_find_closest_point_if_there_are_no_points(self):
+        point = (0.5,)
+        tree = {}
+        assert find_closest(point, tree) is None
+
+    def test_find_closest_finds_coincident_point__1_point_in_total(self):
+        point = (0.5,)
+        tree = {(0,): [(0.5,)]}
+        assert find_closest(point, tree) == (0.5,)
+
+    def test_find_closest_finds_nearby_point__1_point_in_total(self):
+        point = (random.random(),)
+        existing_point = (random.random(),)
+        tree = {(0,): [existing_point]}
+        assert find_closest(point, tree) == existing_point
+
+    def test_find_closest_finds_the_closest_out_of_few(self):
+        x1, x2 = search_point = (0.25, 0.25)
+        closest = (x1 + random.random() / 10, x2 + random.random() / 10)
+        tree = {(0, 0): [(0, 0), closest, (0.5, 0.5), (1, 1)]}
+        assert find_closest(search_point, tree) == closest
+
+    @pytest.mark.skip('TODO')
+    def test_find_closest_on_not_a_first_level(self):
+        pass
+
+    @pytest.mark.skip('TODO')
+    def test_find_closest_for_search_point_on_right_border(self):
+        pass
+
+    @pytest.mark.skip('TODO')
+    def test_find_closest_if_closest_is_in_nearby_cell_on_the_same_level(self):
+        pass
+
+    @pytest.mark.skip('TODO')
+    def test_find_closest_if_closest_is_in_nearby_cell_on_higher_level(self):
+        pass
+
+    @pytest.mark.skip('TODO')
+    def test_find_closest_if_closest_is_in_nearby_cell_on_lower_level(self):
+        pass

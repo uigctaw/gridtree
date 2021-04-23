@@ -126,3 +126,66 @@ def build_list(*, max_leaf_size: PositiveInteger):
         return the_list
 
     return gtree_to_list
+
+
+def find_closest(calculate_distance):
+
+    def _find_closest(search_point, tree):
+        if isinstance(tree, dict):
+            return _find_closest_in_tree(
+                    search_point, tree, calculate_distance)
+        else:
+            return _find_closest_in_list(
+                    search_point, tree, calculate_distance)
+
+    return _find_closest
+
+
+def _find_closest_in_tree(search_point, tree, calculate_distance):
+    if not tree:
+        return None
+
+    this_level = 0
+    index_for_this_level = _calculate_index_for_level(search_point, this_level)
+    tree_or_bucket = tree
+    while True:
+        try:
+            if isinstance(tree_or_bucket, dict):
+                tree_or_bucket = tree_or_bucket[index_for_this_level]
+            else:
+                return _find_closest_in_bucket(
+                        search_point, tree_or_bucket, calculate_distance)
+        except KeyError:
+            pass
+  
+
+def _calculate_index_for_level(search_point, level):
+    return tuple(
+        int((1 << level) * x_i) - (x_i == 1)
+        for x_i in search_point
+    )
+
+
+def _find_closest_in_bucket(search_point, bucket, calculate_distance):
+    if len(bucket) == 1:  # len 0 does not make sense
+        closest, = bucket
+        return closest
+
+    p1, *tail = bucket
+    min_distance_so_far = calculate_distance(search_point, p1)
+
+    if min_distance_so_far == 0:
+        return p1
+
+    closest_point_so_far = p1
+
+    for p in tail:
+        distance = calculate_distance(search_point, p)
+        if distance < min_distance_so_far:
+            min_distance_so_far = distance
+            closest_point_so_far = p
+
+        if min_distance_so_far == 0:
+            return closest_point_so_far
+
+    return closest_point_so_far 
