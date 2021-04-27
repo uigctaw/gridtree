@@ -3,6 +3,7 @@ from functools import reduce
 from itertools import zip_longest
 from operator import ior
 from typing import Annotated, Collection
+import itertools
 
 
 def ValueRange(left, right, *, right_inclusive=False):
@@ -128,64 +129,50 @@ def build_list(*, max_leaf_size: PositiveInteger):
     return gtree_to_list
 
 
-def find_closest(calculate_distance):
-
-    def _find_closest(search_point, tree):
-        if isinstance(tree, dict):
-            return _find_closest_in_tree(
-                    search_point, tree, calculate_distance)
-        else:
-            return _find_closest_in_list(
-                    search_point, tree, calculate_distance)
-
-    return _find_closest
+def _distance_squared(p1, p2):
+    return sum((p1_i - p2_i) ** 2 for p1_i, p2_i in zip(p1, p2))
 
 
-def _find_closest_in_tree(search_point, tree, calculate_distance):
-    if not tree:
-        return None
+def _iter_points_in_range(points, search_point, radius):
+    radius_squared = radius ** 2
+    for point in points:
+        if _distance_squared(point, search_point) <= radius_squared:
+            yield point
 
-    this_level = 0
-    index_for_this_level = _calculate_index_for_level(search_point, this_level)
-    tree_or_bucket = tree
-    while True:
-        try:
-            if isinstance(tree_or_bucket, dict):
-                tree_or_bucket = tree_or_bucket[index_for_this_level]
-            else:
-                return _find_closest_in_bucket(
-                        search_point, tree_or_bucket, calculate_distance)
-        except KeyError:
-            pass
-  
 
-def _calculate_index_for_level(search_point, level):
+def _make_bounding_box(search_point, radius):
+    r = radius
+    options = [(x_i + r, x_i - r) for x_i in search_point]
+    product = tuple(itertools.product(*options))
+    return product
+
+
+def _iter_point_indices(points, level):
+    for point in points:
+        yield _get_point_index_for_level(point, level)
+
+
+def _get_point_index_for_level(point, level):
     return tuple(
-        int((1 << level) * x_i) - (x_i == 1)
-        for x_i in search_point
+        int(x_i * (1 << level)) - (x_i == 1)
+        for x_i in point
     )
 
 
-def _find_closest_in_bucket(search_point, bucket, calculate_distance):
-    if len(bucket) == 1:  # len 0 does not make sense
-        closest, = bucket
-        return closest
+def _get_points_in_bounding_box(tree, bbox, level=0):
+    indices = _iter_point_indices(bbox, level)
+    indices = set(indices)
+    index, = indices
+    tree_or_bucket = tree[index]
+    if isinstance(tree_or_bucket, dict):
+        return _get_points_in_bounding_box(tree_or_bucket, bbox, level + 1)
+    else:
+        return tree_or_bucket
 
-    p1, *tail = bucket
-    min_distance_so_far = calculate_distance(search_point, p1)
 
-    if min_distance_so_far == 0:
-        return p1
-
-    closest_point_so_far = p1
-
-    for p in tail:
-        distance = calculate_distance(search_point, p)
-        if distance < min_distance_so_far:
-            min_distance_so_far = distance
-            closest_point_so_far = p
-
-        if min_distance_so_far == 0:
-            return closest_point_so_far
-
-    return closest_point_so_far 
+def find_in_radius(tree, *, search_point, radius):
+    bbox = _make_bounding_box(search_point, radius)
+    bounded_points = _get_points_in_bounding_box(tree, bbox)
+    points_in_range = _iter_points_in_range(
+        bounded_points, search_point, radius)
+    return tuple(points_in_range)

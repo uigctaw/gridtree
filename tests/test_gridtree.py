@@ -1,6 +1,5 @@
-from gridtree import build, build_list, find_closest
+from gridtree import build, build_list, find_in_radius
 import pytest  # type: ignore
-import random
 
 
 def test_empty_set_results_in_empty_dict():
@@ -127,53 +126,32 @@ class TestTreeAsList:
         assert actual == expected
 
 
-def calculate_distance(p1, p2):
-    return sum((x_i1 - x_i2) ** 2 for x_i1, x_i2 in  zip(p1, p2))
+class TestFindInRadius:
 
+    def test_find_volume_is_entirely_in_an_existing_cell(self):
+        in_range = ((0.25, 0.25), (0.2, 0.3), (0.3, 0.2))
+        tree = {(0, 0): [(0, 0), *in_range, (0.5, 0.5)]}
+        found = find_in_radius(tree, search_point=(0.24, 0.26), radius=0.2)
+        assert found == in_range
 
-find_closest = find_closest(calculate_distance)
-
-
-class TestPointSearch:
-
-    def test_find_closest_point_if_there_are_no_points(self):
-        point = (0.5,)
-        tree = {}
-        assert find_closest(point, tree) is None
-
-    def test_find_closest_finds_coincident_point__1_point_in_total(self):
-        point = (0.5,)
-        tree = {(0,): [(0.5,)]}
-        assert find_closest(point, tree) == (0.5,)
-
-    def test_find_closest_finds_nearby_point__1_point_in_total(self):
-        point = (random.random(),)
-        existing_point = (random.random(),)
-        tree = {(0,): [existing_point]}
-        assert find_closest(point, tree) == existing_point
-
-    def test_find_closest_finds_the_closest_out_of_few(self):
-        x1, x2 = search_point = (0.25, 0.25)
-        closest = (x1 + random.random() / 10, x2 + random.random() / 10)
-        tree = {(0, 0): [(0, 0), closest, (0.5, 0.5), (1, 1)]}
-        assert find_closest(search_point, tree) == closest
+    def test_deeper_find_volume_is_entirely_in_an_existing_cell(self):
+        in_range = ((0.3, 0.3), (0.25, 0.3), (0.3, 0.25))
+        tree = {(0, 0): {
+            (0, 0): in_range,
+            (1, 1): [(0.5, 0.5)]
+        }}
+        search_point = (0.225, 0.225)
+        found = find_in_radius(tree, search_point=search_point, radius=0.2)
+        assert found == in_range
 
     @pytest.mark.skip('TODO')
-    def test_find_closest_on_not_a_first_level(self):
+    def test_find_in_radius_if_spans_multiple_cells_on_the_samel_level(self):
         pass
 
     @pytest.mark.skip('TODO')
-    def test_find_closest_for_search_point_on_right_border(self):
+    def test_find_in_radius_if_spans_multiple_cells_on_different_levels(self):
         pass
 
     @pytest.mark.skip('TODO')
-    def test_find_closest_if_closest_is_in_nearby_cell_on_the_same_level(self):
-        pass
-
-    @pytest.mark.skip('TODO')
-    def test_find_closest_if_closest_is_in_nearby_cell_on_higher_level(self):
-        pass
-
-    @pytest.mark.skip('TODO')
-    def test_find_closest_if_closest_is_in_nearby_cell_on_lower_level(self):
+    def test_find_in_radius_if_spans_mltpl_cells_on_non_contigous_levels(self):
         pass
