@@ -137,21 +137,91 @@ class TestFindInRadius:
     def test_deeper_find_volume_is_entirely_in_an_existing_cell(self):
         in_range = ((0.3, 0.3), (0.25, 0.3), (0.3, 0.25))
         tree = {(0, 0): {
-            (0, 0): in_range,
+            (0, 0): list(in_range),
             (1, 1): [(0.5, 0.5)]
         }}
         search_point = (0.225, 0.225)
         found = find_in_radius(tree, search_point=search_point, radius=0.2)
         assert found == in_range
 
-    @pytest.mark.skip('TODO')
-    def test_find_in_radius_if_spans_multiple_cells_on_the_samel_level(self):
-        pass
+    def test_find_in_radius_if_spans_multiple_cells_on_the_same_level(self):
+        in_range = ((0.45, 0.45), (0.55, 0.55), (0.45, 0.55), (0.55, 0.45))
+        tree = {(0, 0): {
+            (0, 0): [(0.45, 0.45), (0.1, 0.1)],
+            (0, 1): [(0.45, 0.55)],
+            (1, 0): [(0.55, 0.45), (0.9, 0.2)],
+            (1, 1): [(0.55, 0.55)]
+        }}
+        search_point = (0.5, 0.5)
+        found = find_in_radius(tree, search_point=search_point, radius=0.2)
+        assert set(found) == set(in_range)
 
-    @pytest.mark.skip('TODO')
     def test_find_in_radius_if_spans_multiple_cells_on_different_levels(self):
-        pass
+        in_range = (
+                (0.45, 0.45),
+                (0.55, 0.55),
+                (0.45, 0.55),
+                (0.55, 0.45),
+                (0.45, 0.65),
+                )
+        tree = {(0, 0): {
+            (0, 0): [(0.45, 0.45), (0.1, 0.1)],
+            (0, 1): {
+                (1, 2): [(0.45, 0.55), (0.26, 0.55), (0.45, 0.65)],
+                (0, 2): [(0.1, 0.55)],
+            },
+            (1, 0): [(0.55, 0.45), (0.9, 0.2)],
+            (1, 1): [(0.55, 0.55)]
+        }}
+        search_point = (0.5, 0.5)
+        found = find_in_radius(tree, search_point=search_point, radius=0.2)
+        assert set(found) == set(in_range)
 
-    @pytest.mark.skip('TODO')
-    def test_find_in_radius_if_spans_mltpl_cells_on_non_contigous_levels(self):
-        pass
+    def test_find_if_radius_spans_multiple_cells_on_non_contigous_lvls(self):
+        in_range = (
+                (0.45, 0.45),
+                (0.55, 0.55),
+                (0.45, 0.55),
+                (0.55, 0.45),
+                (0.45, 0.65),
+                )
+        tree = {(0, 0): {
+            (0, 0): [(0.45, 0.45), (0.1, 0.1)],
+            (0, 1): {
+                (1, 2): {
+                    (3, 4): [(0.45, 0.55)],
+                    (2, 4): [(0.26, 0.55)],
+                    (3, 5): [(0.45, 0.65)],
+                },
+                (0, 2): [(0.1, 0.55)],
+            },
+            (1, 0): [(0.55, 0.45), (0.9, 0.2)],
+            (1, 1): [(0.55, 0.55)]
+        }}
+        search_point = (0.49, 0.51)
+        found = find_in_radius(tree, search_point=search_point, radius=0.2)
+        assert set(found) == set(in_range)
+
+    def test_find_in_radius_for_non_contigous_levels_and_zones(self):
+        # |------v---------S||----|-v|v-|-----x--|
+        # x not in range
+        # v in range
+        # S search point
+        tree = {
+            (0,): {
+                (0,): [(0.3,)],
+                (1,): {
+                    (2,): {
+                        (5,): {
+                            (10,): [(0.67,)], 
+                            (11,): [(0.72,)],
+                        },
+                    },
+                    (3,): [(0.8,)],
+                },
+            },
+        }
+        search_point = (0.49,)
+        expected_in_range = ((0.3,), (0.67,), (0.72,))
+        found = find_in_radius(tree, search_point=search_point, radius=0.3)
+        assert found == expected_in_range

@@ -140,16 +140,18 @@ def _iter_points_in_range(points, search_point, radius):
             yield point
 
 
-def _make_bounding_box(search_point, radius):
-    r = radius
-    options = [(x_i + r, x_i - r) for x_i in search_point]
-    product = tuple(itertools.product(*options))
-    return product
-
-
-def _iter_point_indices(points, level):
-    for point in points:
-        yield _get_point_index_for_level(point, level)
+def _reduce_bbox(bbox, index, level):
+    cell_width = 1 / (1 << level)
+    low_cell = tuple(i * cell_width for i in index)
+    high_cell = tuple(x_i + cell_width for x_i in low_cell)
+    low_bbox, high_bbox = bbox
+    if low_cell > high_bbox:
+        return None
+    else:
+        return (
+            tuple(max(x_i1, x_i2) for x_i1, x_i2 in zip(low_cell, low_bbox)),
+            tuple(min(x_i1, x_i2) for x_i1, x_i2 in zip(high_cell, high_bbox)),
+        )
 
 
 def _get_point_index_for_level(point, level):
@@ -159,20 +161,32 @@ def _get_point_index_for_level(point, level):
     )
 
 
-def _get_points_in_bounding_box(tree, bbox, level=0):
-    indices = _iter_point_indices(bbox, level)
-    indices = set(indices)
-    index, = indices
-    tree_or_bucket = tree[index]
-    if isinstance(tree_or_bucket, dict):
-        return _get_points_in_bounding_box(tree_or_bucket, bbox, level + 1)
-    else:
-        return tree_or_bucket
+def _iter_points_in_bounding_box(bbox, tree, level):
+    for index, tree_or_bucket in tree.items():
+        if isinstance(tree_or_bucket, list):
+            for point in tree_or_bucket:
+                yield point
+        else:
+            reduced_bbox = _reduce_bbox(bbox, index, level)
+            if reduced_bbox:
+                for point in _iter_points_in_bounding_box(
+                        reduced_bbox,
+                        tree_or_bucket,
+                        level + 1,
+                        ):
+                    yield point
 
 
 def find_in_radius(tree, *, search_point, radius):
-    bbox = _make_bounding_box(search_point, radius)
-    bounded_points = _get_points_in_bounding_box(tree, bbox)
+    bounding_box = tuple(zip(*(
+        (x - radius, x + radius)
+        for x in search_point
+    )))
+    bounded_points = _iter_points_in_bounding_box(
+            bounding_box,
+            tree,
+            level=0,
+            )
     points_in_range = _iter_points_in_range(
         bounded_points, search_point, radius)
     return tuple(points_in_range)
