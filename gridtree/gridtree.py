@@ -2,50 +2,47 @@ from collections import defaultdict
 from functools import reduce
 from itertools import zip_longest
 from operator import ior
-from typing import Annotated, Collection
+from typing import Collection
 import itertools
+import math
 
 
-def ValueRange(left, right, *, right_inclusive=False):
-    """It exists just to annotate a type."""
+class PositiveInt(int):
 
-    def is_valid(value):
-        return left <= value < right or right_inclusive and value == right
-
-    return is_valid
-
-
-def Unique():
-    """It exists just to annotate a type."""
-
-    def is_valid(value):
-        return len(value) == len(set(value))
-
-    return is_valid
+    def __new__(cls, value):
+        val = super().__new__(cls, value)
+        if val > 0:
+            return val
+        else:
+            raise ValueError(f'Not greater than 0: `{val}`')
 
 
-def GreaterThanEqual(threshold):
-    """It exists just to annotate a type."""
+class NormalizedFloat(float):
 
-    def is_valid(value):
-        return value >= threshold
-
-    return is_valid
-
-
-NormalizedFloat = Annotated[float, ValueRange(0, 1, right_inclusive=True)]
-PositiveInteger = Annotated[int, GreaterThanEqual(1)]
+    def __new__(cls, value):
+        val = super().__new__(cls, value)
+        if 0 <= val <= 1:
+            return val
+        else:
+            raise ValueError(f'Not btetween 0 and 1 (inclusive): `{val}`')
 
 
-def build(*, max_leaf_size: PositiveInteger):
+class GTree:
+
+    def __init__(self, max_leaf_size: PositiveInt):
+        self._max_leaf_size = PositiveInt(max_leaf_size)
+
+    def __repr__(self):
+        return f'Gtree(max_leaf_size={self._max_leaf_size})'
 
     def _gtree(
+            self,
             points,
             level,
             parent_index,
             ):
 
-        if len(points) <= max_leaf_size:
+        if len(points) <= self._max_leaf_size:
             return points
 
         index_to_points = defaultdict(list)
@@ -59,7 +56,7 @@ def build(*, max_leaf_size: PositiveInteger):
 
         index_to_node = {}
         for index, node_points in index_to_points.items():
-            index_to_node[index] = _gtree(
+            index_to_node[index] = self._gtree(
                     points=node_points,
                     level=level + 1,
                     parent_index=index,
@@ -67,35 +64,34 @@ def build(*, max_leaf_size: PositiveInteger):
 
         return index_to_node
 
-    def gtree(
-            points: Annotated[
-                Collection[tuple[NormalizedFloat, ...]],
-                Unique,
-            ],
-    ):
-        """
+    def __call__(self, points: Collection[tuple[NormalizedFloat, ...]]):
+        """Build a `gridtree`: n-dimensional quadtree.
 
         Raises
         ------
-        RecursionError: If duplicate points don't fit in a leaf node.
+        RecursionError:
+            If duplicate points don't fit in a leaf node.
+            The passed points should not have duplicates!
+            No check is being made.
         """
         if points:
             reference_point = next(iter(points))
             parent_index = (0,) * len(reference_point)
             return {
-                parent_index: _gtree(
+                parent_index: self._gtree(
                     points, parent_index=parent_index, level=0)
                 }
         else:
             return {}
 
-    return gtree
 
+class GTreeList:
 
-def build_list(*, max_leaf_size: PositiveInteger):
-    builder = build(max_leaf_size=max_leaf_size)
+    def __init__(self, *, max_leaf_size: PositiveInt):
+        self._gtree = GTree(max_leaf_size=max_leaf_size)
 
-    def _gtree_to_list(tree):
+    @classmethod
+    def gtree_to_list(cls, tree):
         if not tree:
             return []
         if isinstance(tree, list):
@@ -103,7 +99,7 @@ def build_list(*, max_leaf_size: PositiveInteger):
 
         the_list = [tree]
         sub_lists = [
-                _gtree_to_list(v)
+                cls.gtree_to_list(v)
                 for v in tree.values()
                 if isinstance(v, dict)
         ]
@@ -116,17 +112,10 @@ def build_list(*, max_leaf_size: PositiveInteger):
             the_list.append(next_element)
         return the_list
 
-    def gtree_to_list(
-            points: Annotated[
-                Collection[tuple[NormalizedFloat, ...]],
-                Unique,
-            ],
-    ):
-        tree = builder(points=points)
-        the_list = _gtree_to_list(tree)
+    def __call__(self, points: Collection[tuple[NormalizedFloat, ...]]):
+        tree = self._gtree(points=points)
+        the_list = self.gtree_to_list(tree)
         return the_list
-
-    return gtree_to_list
 
 
 def _distance_squared(p1, p2):
@@ -177,16 +166,73 @@ def _iter_points_in_bounding_box(bbox, tree, level):
                     yield point
 
 
-def find_in_radius(tree, *, search_point, radius):
+def _calculate_level(length):
+    inverse = math.ceil(1 / length)
+    shifts = 0
+    while inverse:
+        inverse >>= 1
+        shifts += 1
+    return shifts
+
+
+def _iter_points_in_bounding_box_in_list_tree(bbox, list_tree):
+    lengths = [(bi - ai) for ai, bi in zip(*bbox)]
+    potential_level = _calculate_level(max(lengths))
+    init_level = max(min(potential_level, len(list_tree)) - 1, 0)
+    ids_along_each_dimension = [
+        tuple(range(
+            int(ai * (num_sections := (1 << init_level))),
+            int(bi * num_sections) + (bi < 1),
+            ))
+        for ai, bi in zip(*bbox)
+    ]
+    indices_to_search = list(itertools.product(*ids_along_each_dimension))
+    indices_to_bboxes = {
+            index_: _reduce_bbox(bbox, index_, init_level)
+            for index_ in indices_to_search
+            }
+
+    init_indices_to_actual_indicies = {}
+    for init_index in indices_to_search:
+        index = init_index
+        level = init_level
+        while True:
+            tree = list_tree[level]
+            if index in tree:
+                init_indices_to_actual_indicies[init_index] = (index, level)
+                break
+            else:
+                index = tuple(xi // 2 for xi in index)
+                level -= 1
+
+    for init_index, bbox in indices_to_bboxes.items():
+        index, level = init_indices_to_actual_indicies[init_index]
+        tree_or_bucket = list_tree[level][index]
+        if isinstance(tree_or_bucket, list):
+            for point in tree_or_bucket:
+                yield point
+        else:
+            for point in _iter_points_in_bounding_box(
+                    bbox, tree_or_bucket, level + 1):
+                yield point
+
+
+def find_in_radius(tree_or_list_tree, *, search_point, radius):
     bounding_box = tuple(zip(*(
         (x - radius, x + radius)
         for x in search_point
     )))
-    bounded_points = _iter_points_in_bounding_box(
-            bounding_box,
-            tree,
-            level=0,
-            )
+    if isinstance(tree_or_list_tree, dict):
+        bounded_points = _iter_points_in_bounding_box(
+                bounding_box,
+                tree=tree_or_list_tree,
+                level=0,
+                )
+    else:
+        bounded_points = _iter_points_in_bounding_box_in_list_tree(
+                bounding_box,
+                list_tree=tree_or_list_tree,
+                )
     points_in_range = _iter_points_in_range(
         bounded_points, search_point, radius)
     return tuple(points_in_range)
