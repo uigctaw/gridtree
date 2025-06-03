@@ -24,7 +24,9 @@ class NormalizedFloat(float):
         if 0 <= val <= 1:
             return val
         else:
-            raise ValueError(f'Not btetween 0 and 1 (inclusive): `{val}`')
+            raise ValueError(
+                f'Not between 0 and 1 (inclusive): `{val}`'
+            )
 
 
 class GTree:
@@ -33,7 +35,7 @@ class GTree:
         self._max_leaf_size = PositiveInt(max_leaf_size)
 
     def __repr__(self):
-        return f'Gtree(max_leaf_size={self._max_leaf_size})'
+        return f'GTree(max_leaf_size={self._max_leaf_size})'
 
     def _gtree(
             self,
@@ -134,13 +136,18 @@ def _reduce_bbox(bbox, index, level):
     low_cell = tuple(i * cell_width for i in index)
     high_cell = tuple(x_i + cell_width for x_i in low_cell)
     low_bbox, high_bbox = bbox
-    if low_cell > high_bbox:
-        return None
-    else:
-        return (
-            tuple(max(x_i1, x_i2) for x_i1, x_i2 in zip(low_cell, low_bbox)),
-            tuple(min(x_i1, x_i2) for x_i1, x_i2 in zip(high_cell, high_bbox)),
+    intersects = not any(
+        (low_cell_i > high_bbox_i) or (high_cell_i < low_bbox_i)
+        for low_cell_i, high_cell_i, low_bbox_i, high_bbox_i in zip(
+            low_cell, high_cell, low_bbox, high_bbox
         )
+    )
+    if not intersects:
+        return None
+    return (
+        tuple(max(x_i1, x_i2) for x_i1, x_i2 in zip(low_cell, low_bbox)),
+        tuple(min(x_i1, x_i2) for x_i1, x_i2 in zip(high_cell, high_bbox)),
+    )
 
 
 def _get_point_index_for_level(point, level):
