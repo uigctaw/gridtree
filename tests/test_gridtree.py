@@ -366,3 +366,11 @@ class TestFindInRadiusForListTree:
         found = find_in_radius(
                 list_tree, search_point=search_point, radius=0.3)
         assert found == expected_in_range
+
+
+def test_reduce_bbox_returns_none_when_no_intersection_in_higher_dimension():
+    from gridtree.gridtree import _reduce_bbox
+
+    bbox = ((0.7, 0.1), (0.8, 0.3))
+    assert _reduce_bbox(bbox, (0, 1), 1) is None
+
